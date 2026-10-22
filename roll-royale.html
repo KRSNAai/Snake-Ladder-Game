@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roll Royale</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff3dc;--ink:#1b2a4a;--card:#ffffffd9;--line:#1b2a4a22;--coral:#ff6b5e;--blue:#2f55d4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171b33;--ink:#f6efe0;--card:#252b4dd9;--line:#f6efe033}}
+:root[data-theme="dark"]{--bg:#171b33;--ink:#f6efe0;--card:#252b4dd9;--line:#f6efe033}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:500 16px/1.4 "Baloo 2",system-ui,sans-serif;overflow:hidden}
+#app{height:100%;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px}
+header h1{font-size:22px;font-weight:800;margin:0;letter-spacing:.2px;flex:1}
+button{font:inherit;color:inherit;cursor:pointer}
+.ib{background:var(--card);border:2px solid var(--line);border-radius:12px;min-width:44px;min-height:44px;padding:0 12px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+main{flex:1;min-height:0;display:flex;flex-direction:column}
+#stage{flex:1;min-height:0;position:relative;overflow:hidden}
+#stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+aside{padding:8px 12px 12px;display:flex;flex-direction:column;gap:8px;max-height:42vh;overflow:auto}
+#turn{font-size:18px;font-weight:700}
+#roll{background:var(--coral);color:#fff;border:0;border-radius:16px;min-height:56px;font-size:22px;font-weight:800;box-shadow:0 5px 0 #c24a40;transition:transform .08s,box-shadow .08s}
+#roll:active:not(:disabled){transform:translateY(4px);box-shadow:0 1px 0 #c24a40}
+#roll:disabled{opacity:.55;cursor:not-allowed}
+#players{display:flex;gap:8px;flex-wrap:wrap}
+.pc{display:flex;align-items:center;gap:8px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:6px 12px;flex:1 1 130px}
+.pc[aria-current="true"]{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue)44}
+.dot{width:18px;height:18px;border-radius:50%;flex:none}
+.pc small{display:block;opacity:.75;line-height:1.1}
+#log{margin:0;padding:0;list-style:none;font-size:14px;opacity:.9;max-height:84px;overflow:auto}
+@media(min-width:900px){main{flex-direction:row}aside{width:320px;max-height:none;padding:8px 16px}#players{flex-direction:column}.pc{flex:none}#log{max-height:none;flex:1}}
+.modal{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.modal[hidden]{display:none}
+.box{background:var(--bg);border-radius:22px;padding:22px;max-width:420px;width:100%;max-height:90vh;overflow:auto;border:2px solid var(--line)}
+.box h2{margin:0 0 8px;font-size:28px;font-weight:800}
+.row{display:flex;gap:8px;margin:10px 0}
+.row button{flex:1;min-height:46px;border-radius:12px;border:2px solid var(--line);background:var(--card)}
+.row button[aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.nm{display:flex;align-items:center;gap:10px;margin:8px 0}
+.nm input{flex:1;min-height:44px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:inherit;padding:0 12px;font:inherit}
+.go{width:100%;min-height:52px;border-radius:14px;border:0;background:var(--coral);color:#fff;font-size:20px;font-weight:800;margin-top:8px}
+.err{color:#d93a2c;min-height:22px;margin:4px 0}
+.fx{position:fixed;top:-20px;width:10px;height:14px;z-index:9;animation:f 2.6s ease-in forwards;pointer-events:none}
+@keyframes f{to{transform:translateY(110vh) rotate(720deg)}}
+@media(prefers-reduced-motion:reduce){#roll{transition:none}}
+</style></head><body>
+<div id="app">
+<header><h1>Roll Royale</h1>
+<button class="ib" id="mute" aria-label="Toggle sound" aria-pressed="false">🔊</button>
+<button class="ib" id="help" aria-label="How to play">?</button>
+<button class="ib" id="new">New game</button></header>
+<main><div id="stage" aria-label="3D game board"></div>
+<aside><div id="turn" aria-live="polite"></div>
+<button id="roll">Roll dice</button>
+<div id="players"></div>
+<ol id="log" aria-label="Move history"></ol></aside></main></div>
+
+<div class="modal" id="setup"><div class="box" role="dialog" aria-labelledby="st"><h2 id="st">Roll Royale</h2>
+<p>Play with friends on one device, or choose vs Bot to play the computer.</p>
+<div class="row" id="count"></div><div id="names"></div><div class="err" id="err" role="alert"></div>
+<button class="go" id="start">Start game</button>
+<button class="go" id="cancel" style="background:var(--card);color:var(--ink);border:2px solid var(--line)" hidden>Keep playing</button></div></div>
+
+<div class="modal" id="rules" hidden><div class="box" role="dialog" aria-labelledby="rt"><h2 id="rt">How to play</h2>
+<p>Take turns rolling the die and race from the start to square 100.</p>
+<p>Land on a ladder's bottom to climb up. Land on a snake's head to slide down.</p>
+<p>You need the exact number to land on 100. If your roll is too high, you stay put.</p>
+<button class="go" id="rclose">Got it</button></div></div>
+
+<div class="modal" id="win" hidden><div class="box" role="dialog" aria-labelledby="wt"><h2 id="wt"></h2>
+<p>Great game! Play again with the same players?</p>
+<button class="go" id="rematch">Rematch</button>
+<button class="go" id="wnew" style="background:var(--card);color:var(--ink);border:2px solid var(--line)">New game</button></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const COL=['#ff6b5e','#16b8b0','#f6c322','#2f55d4','#2bb673','#9b7bea'];
+const PAL=['#ffd9d4','#c9f2ef','#fff0b3','#d3dcff','#cdeedd','#e5dcfb'];
+const LAD={4:14,9:31,20:38,28:84,40:59,51:67,63:81,71:91};
+const SNK={17:7,54:34,62:19,64:60,87:24,93:73,95:75,99:78};
+const JUMP={...LAD,...SNK};
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+/* ---------- Game engine (pure, no rendering) ---------- */
+function createGame(names,bot=-1){return{players:names.map((n,i)=>({name:n,pos:0,color:COL[i],bot:i===bot})),turn:0,winner:null,ver:0}}
+function applyRoll(s,roll){
+  if(s.winner!==null)return{state:s,events:[],error:'Game is over'};
+  if(!Number.isInteger(roll)||roll<1||roll>6)return{state:s,events:[],error:'Invalid roll'};
+  const ev=[{t:'roll',p:s.turn,roll}];const from=s.players[s.turn].pos;let np=from+roll;
+  if(np>100){ev.push({t:'bounce'});np=from}
+  else{ev.push({t:'move',from,to:np});const j=JUMP[np];if(j){ev.push({t:j>np?'ladder':'snake',from:np,to:j});np=j}}
+  const players=s.players.map((q,i)=>i===s.turn?{...q,pos:np}:q);
+  const win=np===100;if(win)ev.push({t:'win',p:s.turn});
+  return{state:{players,turn:win?s.turn:(s.turn+1)%players.length,winner:win?s.turn:null,ver:s.ver+1},events:ev}}
+function sq(n){const i=n-1,r=Math.floor(i/10);let c=i%10;if(r%2)c=9-c;return{x:c-4.5,z:4.5-r}}
+
+/* ---------- Sound ---------- */
+let ac=null,muted=false;
+function tone(f,d,type='sine',v=.12,delay=0){if(muted)return;try{ac=ac||new AudioContext();if(ac.state==='suspended')ac.resume();const t=ac.currentTime+delay,o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d)}catch(e){}}
+const sfx={roll(){for(let i=0;i<6;i++)tone(200+Math.random()*200,.06,'square',.05,i*.1)},step(){tone(520,.08,'triangle')},up(){[400,500,600,800].forEach((f,i)=>tone(f,.12,'triangle',.12,i*.09))},down(){[600,450,320,200].forEach((f,i)=>tone(f,.14,'sawtooth',.07,i*.1))},win(){[523,659,784,1046].forEach((f,i)=>tone(f,.25,'triangle',.14,i*.14))},click(){tone(660,.05,'triangle')}};
+
+/* ---------- 3D scene ---------- */
+let renderer,scene,camera,dice,ring,dirty=true,webgl=true;
+const pawns=[],stage=$('#stage'),curves={};
+function invalidate(){dirty=true}
+function tween(ms,fn){ms=RM?ms*.6:ms;return new Promise(r=>{const t0=performance.now();(function f(n){const k=Math.min(1,(n-t0)/ms);fn(k);invalidate();k<1?requestAnimationFrame(f):r()})(t0)})}
+const ease=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+function tex(draw,s=128){const c=document.createElement('canvas');c.width=c.height=s;draw(c.getContext('2d'),s);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t}
+function std(color,o={}){return new THREE.MeshStandardMaterial({color,roughness:.45,...o})}
+function initScene(){
+  try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true})}catch(e){webgl=false;stage.innerHTML='<p style="padding:24px">This game needs WebGL for the 3D board. Try a recent Chrome, Edge, Firefox or Safari.</p>';return}
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;stage.appendChild(renderer.domElement);
+  scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(40,1,.1,100);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8896c4,.85));
+  const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(-6,12,8);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+  Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9});sun.shadow.camera.updateProjectionMatrix();scene.add(sun);
+  const base=new THREE.Mesh(new THREE.BoxGeometry(10.5,.3,10.5),std('#2f55d4'));base.position.y=-.2;base.receiveShadow=true;scene.add(base);
+  for(let n=1;n<=100;n++){const p=sq(n),i=n-1,r=Math.floor(i/10);
+    const col=n===100?'#ffd84a':PAL[(p.x+4.5+r*2)%6|0];
+    const top=tex((g,s)=>{g.fillStyle=col;g.fillRect(0,0,s,s);g.fillStyle='#1b2a4acc';g.font='bold 34px sans-serif';g.textAlign='left';g.textBaseline='top';g.fillText(n===100?'100★':n,10,8)},96);
+    const side=std(col),m=new THREE.Mesh(new THREE.BoxGeometry(.94,.2,.94),[side,side,new THREE.MeshStandardMaterial({map:top,roughness:.5}),side,side,side]);
+    m.position.set(p.x,0,p.z);m.receiveShadow=true;scene.add(m)}
+  Object.entries(LAD).forEach(([a,b])=>ladder(+a,+b));
+  Object.entries(SNK).forEach(([a,b],i)=>snake(+a,+b,i));
+  const pips={1:[[.5,.5]],2:[[.28,.28],[.72,.72]],3:[[.28,.28],[.5,.5],[.72,.72]],4:[[.28,.28],[.72,.28],[.28,.72],[.72,.72]],5:[[.28,.28],[.72,.28],[.5,.5],[.28,.72],[.72,.72]],6:[[.28,.25],[.72,.25],[.28,.5],[.72,.5],[.28,.75],[.72,.75]]};
+  const faces=[3,4,1,6,2,5].map(v=>new THREE.MeshStandardMaterial({roughness:.25,metalness:.05,map:tex((g,s)=>{g.fillStyle='#fffaf0';g.fillRect(0,0,s,s);g.fillStyle=v===1?'#ff6b5e':'#1b2a4a';pips[v].forEach(([x,y])=>{g.beginPath();g.arc(x*s,y*s,s*.085,0,7);g.fill()})})}));
+  dice=new THREE.Mesh(new THREE.BoxGeometry(.8,.8,.8),faces);dice.castShadow=true;dice.position.set(3.6,.5,6);scene.add(dice);
+  ring=new THREE.Mesh(new THREE.TorusGeometry(.3,.04,8,32),new THREE.MeshBasicMaterial({color:0xffffff}));ring.rotation.x=Math.PI/2;scene.add(ring);
+  new ResizeObserver(resize).observe(stage);resize();(function loop(){if(dirty){dirty=false;renderer.render(scene,camera)}requestAnimationFrame(loop)})()}
+function ladder(a,b){const A=sq(a),B=sq(b),dx=B.x-A.x,dz=B.z-A.z,L=Math.hypot(dx,dz),g=new THREE.Group(),w=std('#c98a4b');
+  for(const s of[-1,1]){const r=new THREE.Mesh(new THREE.BoxGeometry(L,.07,.07),w);r.position.set(0,0,s*.15);r.castShadow=true;g.add(r)}
+  for(let d=.25;d<L;d+=.45){const r=new THREE.Mesh(new THREE.BoxGeometry(.06,.05,.3),std('#e8b36b'));r.position.set(d-L/2,0,0);g.add(r)}
+  g.position.set((A.x+B.x)/2,.3,(A.z+B.z)/2);g.rotation.y=-Math.atan2(dz,dx);scene.add(g)}
+function snake(a,b,k){const A=sq(a),B=sq(b),dx=B.x-A.x,dz=B.z-A.z,L=Math.hypot(dx,dz),nx=-dz/L,nz=dx/L,pts=[];
+  for(let i=0;i<=10;i++){const t=i/10,w=Math.sin(t*Math.PI*3+k)*.35*Math.sin(t*Math.PI);pts.push(new THREE.Vector3(A.x+dx*t+nx*w,.28,A.z+dz*t+nz*w))}
+  const c=new THREE.CatmullRomCurve3(pts);curves[a]=c;const color=['#2bb673','#9b7bea','#ff6b5e','#16b8b0'][k%4],m=std(color);
+  const tube=new THREE.Mesh(new THREE.TubeGeometry(c,48,.11,8),m);tube.castShadow=true;scene.add(tube);
+  const h=new THREE.Mesh(new THREE.SphereGeometry(.19,16,12),m);h.scale.set(1.2,.9,1);h.position.copy(pts[0]);h.position.y=.32;scene.add(h);
+  for(const s of[-1,1]){const e=new THREE.Mesh(new THREE.SphereGeometry(.06,10,8),std('#fff'));e.position.set(A.x+nx*s*.09,.46,A.z+nz*s*.09+.03);const p=new THREE.Mesh(new THREE.SphereGeometry(.03,8,6),std('#111'));p.position.copy(e.position);p.position.y+=.01;p.position.z+=.04;scene.add(e,p)}}
+function resize(){if(!webgl)return;const w=stage.clientWidth,h=stage.clientHeight||300,asp=w/h;renderer.setSize(w,h,false);camera.aspect=asp;
+  const D=Math.max(16,17/asp),tz=1.2;camera.position.set(0,.82*D,tz+.57*D);camera.lookAt(0,0,tz);camera.updateProjectionMatrix();invalidate()}
+function offs(i,n){return n===0?{x:-4.5+i*.8,z:5.9}:{x:(i%2-.5)*.38,z:(Math.floor(i/2)-.5)*.38}}
+function pawnPos(i,n){const b=sq(n||1),o=offs(i,n);return n===0?new THREE.Vector3(o.x,.1,o.z):new THREE.Vector3(b.x+o.x,.1,b.z+o.z)}
+function buildPawns(){pawns.forEach(p=>scene.remove(p));pawns.length=0;
+  G.players.forEach((pl,i)=>{const g=new THREE.Group(),m=std(pl.color,{roughness:.3});
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(.09,.17,.36,16),m),hd=new THREE.Mesh(new THREE.SphereGeometry(.13,16,12),m);hd.position.y=.3;b.position.y=.18;b.castShadow=hd.castShadow=true;g.add(b,hd);
+    g.position.copy(pawnPos(i,pl.pos));scene.add(g);pawns.push(g)});markActive()}
+function markActive(){if(!webgl)return;ring.visible=G.winner===null;const p=pawns[G.turn];ring.position.set(p.position.x,.06,p.position.z);ring.material.color.set(G.players[G.turn].color);invalidate()}
+const FACE={1:[0,0,0],6:[Math.PI,0,0],3:[0,0,Math.PI/2],4:[0,0,-Math.PI/2],2:[-Math.PI/2,0,0],5:[Math.PI/2,0,0]};
+function rollDice(v){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(...FACE[v])).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.random()*6));
+  const ax=new THREE.Vector3(Math.random()-.5,Math.random(),Math.random()-.5).normalize(),sp=new THREE.Quaternion();sfx.roll();
+  return tween(1100,k=>{const e=1-Math.pow(1-k,3);sp.setFromAxisAngle(ax,(1-e)*Math.PI*6);dice.quaternion.copy(sp).multiply(q);dice.position.y=.5+Math.abs(Math.sin(k*Math.PI*3))*(1-k)*1.2})}
+async function hop(i,from,to){const a=pawnPos(i,from),b=pawnPos(i,to);sfx.step();await tween(230,k=>{pawns[i].position.lerpVectors(a,b,k);pawns[i].position.y=.1+Math.sin(k*Math.PI)*.3})}
+
+/* ---------- Game flow ---------- */
+let G,busy=false,names=[],nPl=2;
+async function play(){try{await play0()}catch(err){console.error(err);busy=false;if(webgl)buildPawns();sync();if(G.winner===null&&G.players[G.turn].bot)setTimeout(()=>{if(!busy&&G.players[G.turn].bot)play()},800)}}
+async function play0(){
+  if(busy||G.winner!==null)return;busy=true;sync();
+  const roll=1+crypto.getRandomValues(new Uint32Array(1))[0]%6,{state,events,error}=applyRoll(G,roll);
+  if(error){busy=false;sync();return}
+  ring.visible=false;await rollDice(roll);
+  const pl=G.players[G.turn],i=G.turn;let msg=pl.name+' rolled '+roll;
+  for(const e of events){
+    if(e.t==='move'){for(let n=e.from+1;n<=e.to;n++)await hop(i,n-1,n);if(e.from===0&&false);msg+=' → '+e.to}
+    else if(e.t==='bounce'){msg+=' — needs exact roll, stays';const bx=pawns[i].position.x;await tween(300,k=>{pawns[i].position.x=bx+Math.sin(k*20)*.06*(1-k)})}
+    else if(e.t==='ladder'){msg+=', ladder up to '+e.to;sfx.up();const a=pawnPos(i,e.from),b=pawnPos(i,e.to);await tween(900,k=>{pawns[i].position.lerpVectors(a,b,ease(k));pawns[i].position.y=.1+Math.sin(k*Math.PI)*.4})}
+    else if(e.t==='snake'){msg+=', snake slides to '+e.to;sfx.down();const c=curves[e.from],b=pawnPos(i,e.to);await tween(1000,k=>{const p=c.getPoint(ease(k));pawns[i].position.set(p.x+offs(i,1).x*(1-k)+(b.x-sq(e.to).x)*k,.1+.2*(1-k),p.z+offs(i,1).z*(1-k)+(b.z-sq(e.to).z)*k)});pawns[i].position.copy(b)}
+    else if(e.t==='win'){sfx.win();msg+=' and wins!'}}
+  G=state;const li=document.createElement('li');li.textContent=msg;$('#log').prepend(li);
+  busy=false;markActive();sync();if(G.winner===null&&G.players[G.turn].bot)setTimeout(()=>{if(!busy&&G.winner===null&&G.players[G.turn].bot)play()},800);
+  if(G.winner!==null){$('#wt').textContent=G.players[G.winner].name+' wins! 🎉';$('#win').hidden=false;confetti()}}
+function sync(){const p=G.players[G.turn];
+  $('#turn').textContent=G.winner!==null?p.name+' won!':busy?p.name+' is rolling…':p.bot?p.name+' is thinking…':G.players.some(q=>q.bot)?'Your turn, '+p.name+'. Roll the dice.':p.name+"'s turn. Pass the device and roll.";
+  $('#roll').disabled=busy||G.winner!==null||!!p.bot;
+  $('#players').innerHTML=G.players.map((q,i)=>'<div class="pc" '+(i===G.turn&&G.winner===null?'aria-current="true"':'')+'><span class="dot" style="background:'+q.color+'"></span><div>'+esc(q.name)+'<small>'+(q.pos?'Square '+q.pos:'At start')+'</small></div></div>').join('')}
+function esc(s){return s.replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')}
+function startGame(n){if(busy)return;const bot=n.length===1;G=createGame(bot?[n[0],'Bot 🤖']:n,bot?1:-1);busy=false;$('#log').innerHTML='';if(webgl)buildPawns();sync();$('#setup').hidden=true;$('#win').hidden=true}
+function confetti(){if(RM)return;for(let i=0;i<70;i++){const d=document.createElement('div');d.className='fx';d.style.left=Math.random()*100+'vw';d.style.background=COL[i%6];d.style.animationDelay=Math.random()*.8+'s';document.body.appendChild(d);setTimeout(()=>d.remove(),3600)}}
+
+/* ---------- Setup + UI ---------- */
+function drawSetup(){
+  $('#count').innerHTML=[1,2,3,4].map(n=>'<button aria-pressed="'+(n===nPl)+'" data-n="'+n+'">'+(n===1?'vs Bot':n+' players')+'</button>').join('');
+  $('#names').innerHTML=Array.from({length:nPl},(_,i)=>'<label class="nm"><span class="dot" style="background:'+COL[i]+'"></span><input maxlength="14" aria-label="Player '+(i+1)+' name" value="'+esc(names[i]||'Player '+(i+1))+'"></label>').join('')}
+$('#count').onclick=e=>{const n=e.target.dataset.n;if(!n)return;names=[...document.querySelectorAll('#names input')].map(x=>x.value);nPl=+n;drawSetup();sfx.click()};
+$('#start').onclick=()=>{if(busy)return $('#err').textContent='Wait for the current move to finish, then try again.';const v=[...document.querySelectorAll('#names input')].map(x=>x.value.trim());
+  if(v.some(x=>!x))return $('#err').textContent='Every player needs a name.';
+  if(new Set(v.map(x=>x.toLowerCase())).size<v.length)return $('#err').textContent='Names must be different.';
+  $('#err').textContent='';names=v;sfx.click();startGame(v)};
+$('#roll').onclick=()=>{if(!G.players[G.turn].bot)play()};
+$('#rematch').onclick=()=>startGame(names);
+$('#wnew').onclick=()=>{$('#win').hidden=true;openSetup()};
+let nt;$('#new').onclick=()=>{if(busy)return;if(!G||G.winner!==null||!G.ver){openSetup();return}const b=$('#new');if(b.dataset.c){clearTimeout(nt);b.textContent='New game';delete b.dataset.c;openSetup()}else{b.dataset.c=1;b.textContent='Tap to confirm';nt=setTimeout(()=>{b.textContent='New game';delete b.dataset.c},3000)}};
+function openSetup(){drawSetup();$('#cancel').hidden=!G||G.winner!==null;$('#setup').hidden=false}
+$('#cancel').onclick=()=>$('#setup').hidden=true;
+$('#help').onclick=()=>$('#rules').hidden=false;$('#rclose').onclick=()=>$('#rules').hidden=true;
+$('#mute').onclick=()=>{muted=!muted;$('#mute').textContent=muted?'🔇':'🔊';$('#mute').setAttribute('aria-pressed',muted);if(!muted)sfx.click()};
+addEventListener('keydown',e=>{if(e.key==='Escape'){$('#rules').hidden=true}});
+if(typeof THREE==='undefined'){stage.innerHTML='<p style="padding:24px">The 3D library could not load. Check your connection and reload.</p>';webgl=false}else initScene();
+G=createGame(['Player 1','Player 2']);sync();drawSetup();
+if(webgl){buildPawns()}
+</script></body></html>
